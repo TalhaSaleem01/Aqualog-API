@@ -78,7 +78,7 @@ def create_entry(request: Request, entry: EntryCreate, current_user: str = Depen
 # ---------------------------------------------------------------------
 # Update
 # ---------------------------------------------------------------------
-@router.put("/{entry_id}", response_model=EntryOut)
+@router.put("/{entry_id}", response_model=EntryOut) 
 def update_entry(
     request: Request,
     entry_id: int,
@@ -95,3 +95,15 @@ def update_entry(
 
     entry.update(update_data)
     return entry
+
+
+# ---------------------------------------------------------------------
+# Delete
+# ---------------------------------------------------------------------
+@router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_entry(request: Request, entry_id: int, current_user: str = Depends(get_current_user)):
+    entry = _find_entry(entry_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail=f"Entry {entry_id} not found")
+    entries_db.remove(entry)
+    return None
