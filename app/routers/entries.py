@@ -1,8 +1,11 @@
 from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+
 from ..auth import get_current_user
 from ..database import entries_db, get_next_entry_id, seed_entries, TASK_TYPES
-from ..models import EntryOut,EntryCreate, EntryUpdate
+from ..models import EntryCreate, EntryOut, EntryUpdate
+from app import limiter
 
 router = APIRouter(prefix="/entries", tags=["Aquarium Log Entries"])
 
@@ -17,6 +20,7 @@ def _find_entry(entry_id: int) -> Optional[dict]:
 # Read — list (with filtering + sorting) and single
 # ---------------------------------------------------------------------
 @router.get("", response_model=List[EntryOut])
+@limiter.limit("30/minute")
 def list_entries(
     request: Request,
     tank_name: Optional[str] = None,
@@ -26,7 +30,15 @@ def list_entries(
     order: str = "asc",
     current_user: str = Depends(get_current_user),
 ):
+    """
+    List all log entries. Supports optional filtering and sorting
+    (bonus feature — not part of the base assignment):
 
+    - ?tank_name=Reef Tank A
+    - ?task_type=feeding
+    - ?completed=true
+    - ?sort_by=performed_at&order=desc
+    """
     results = entries_db
 
     if tank_name:
@@ -52,12 +64,14 @@ def list_entries(
 # "/{entry_id}" so the fixed path "/entries/reset" is matched first.
 # ---------------------------------------------------------------------
 @router.post("/reset", response_model=List[EntryOut])
+@limiter.limit("5/minute")
 def reset_entries(request: Request, current_user: str = Depends(get_current_user)):
     seed_entries()
     return entries_db
 
 
 @router.get("/{entry_id}", response_model=EntryOut)
+@limiter.limit("30/minute")
 def get_entry(request: Request, entry_id: int, current_user: str = Depends(get_current_user)):
     entry = _find_entry(entry_id)
     if entry is None:
@@ -69,6 +83,7 @@ def get_entry(request: Request, entry_id: int, current_user: str = Depends(get_c
 # Create
 # ---------------------------------------------------------------------
 @router.post("", response_model=EntryOut, status_code=status.HTTP_201_CREATED)
+@limiter.limit("15/minute")
 def create_entry(request: Request, entry: EntryCreate, current_user: str = Depends(get_current_user)):
     new_entry = {"id": get_next_entry_id(), **entry.model_dump()}
     entries_db.append(new_entry)
@@ -78,7 +93,8 @@ def create_entry(request: Request, entry: EntryCreate, current_user: str = Depen
 # ---------------------------------------------------------------------
 # Update
 # ---------------------------------------------------------------------
-@router.put("/{entry_id}", response_model=EntryOut) 
+@router.put("/{entry_id}", response_model=EntryOut)
+@limiter.limit("15/minute")
 def update_entry(
     request: Request,
     entry_id: int,
@@ -101,6 +117,7 @@ def update_entry(
 # Delete
 # ---------------------------------------------------------------------
 @router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("15/minute")
 def delete_entry(request: Request, entry_id: int, current_user: str = Depends(get_current_user)):
     entry = _find_entry(entry_id)
     if entry is None:
