@@ -14,7 +14,6 @@ app = FastAPI(
 def root():
     return {"name": "AquaLog API", "version": "1.0.0", "docs": "/docs"}
 
-
 @app.get("/health", tags=["Root"])
 def health():
     return {"status": "ok"}

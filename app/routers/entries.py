@@ -1,0 +1,68 @@
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from ..auth import get_current_user
+from ..database import entries_db, get_next_entry_id, seed_entries, TASK_TYPES
+from ..models import EntryOut
+
+router = APIRouter(prefix="/entries", tags=["Aquarium Log Entries"])
+
+VALID_SORT_FIELDS = {"id", "tank_name", "task_type", "performed_at", "completed"}
+
+
+def _find_entry(entry_id: int) -> Optional[dict]:
+    return next((e for e in entries_db if e["id"] == entry_id), None)
+
+
+# ---------------------------------------------------------------------
+# Read — list (with filtering + sorting) and single
+# ---------------------------------------------------------------------
+@router.get("", response_model=List[EntryOut])
+def list_entries(
+    request: Request,
+    tank_name: Optional[str] = None,
+    task_type: Optional[str] = None,
+    completed: Optional[bool] = None,
+    sort_by: str = "id",
+    order: str = "asc",
+    current_user: str = Depends(get_current_user),
+):
+
+    results = entries_db
+
+    if tank_name:
+        results = [e for e in results if e["tank_name"].lower() == tank_name.lower()]
+    if task_type:
+        if task_type not in TASK_TYPES:
+            raise HTTPException(status_code=400, detail=f"task_type must be one of {sorted(TASK_TYPES)}")
+        results = [e for e in results if e["task_type"] == task_type]
+    if completed is not None:
+        results = [e for e in results if e["completed"] == completed]
+
+    if sort_by not in VALID_SORT_FIELDS:
+        raise HTTPException(status_code=400, detail=f"sort_by must be one of {sorted(VALID_SORT_FIELDS)}")
+    if order not in {"asc", "desc"}:
+        raise HTTPException(status_code=400, detail="order must be 'asc' or 'desc'")
+
+    results = sorted(results, key=lambda e: e[sort_by], reverse=(order == "desc"))
+    return results
+
+
+# ---------------------------------------------------------------------
+# Seed / reset — handy for demos and re-testing. Registered before
+# "/{entry_id}" so the fixed path "/entries/reset" is matched first.
+# ---------------------------------------------------------------------
+@router.post("/reset", response_model=List[EntryOut])
+def reset_entries(request: Request, current_user: str = Depends(get_current_user)):
+    seed_entries()
+    return entries_db
+
+
+@router.get("/{entry_id}", response_model=EntryOut)
+def get_entry(request: Request, entry_id: int, current_user: str = Depends(get_current_user)):
+    entry = _find_entry(entry_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail=f"Entry {entry_id} not found")
+    return entry
+
+
+
