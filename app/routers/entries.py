@@ -2,7 +2,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from ..auth import get_current_user
 from ..database import entries_db, get_next_entry_id, seed_entries, TASK_TYPES
-from ..models import EntryOut
+from ..models import EntryOut,EntryCreate, EntryUpdate
 
 router = APIRouter(prefix="/entries", tags=["Aquarium Log Entries"])
 
@@ -65,4 +65,33 @@ def get_entry(request: Request, entry_id: int, current_user: str = Depends(get_c
     return entry
 
 
+# ---------------------------------------------------------------------
+# Create
+# ---------------------------------------------------------------------
+@router.post("", response_model=EntryOut, status_code=status.HTTP_201_CREATED)
+def create_entry(request: Request, entry: EntryCreate, current_user: str = Depends(get_current_user)):
+    new_entry = {"id": get_next_entry_id(), **entry.model_dump()}
+    entries_db.append(new_entry)
+    return new_entry
 
+
+# ---------------------------------------------------------------------
+# Update
+# ---------------------------------------------------------------------
+@router.put("/{entry_id}", response_model=EntryOut)
+def update_entry(
+    request: Request,
+    entry_id: int,
+    update: EntryUpdate,
+    current_user: str = Depends(get_current_user),
+):
+    entry = _find_entry(entry_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail=f"Entry {entry_id} not found")
+
+    update_data = update.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields provided to update")
+
+    entry.update(update_data)
+    return entry
