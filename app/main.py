@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from .routers import entries,authroutes
 
 app = FastAPI(
     title="AquaLog API",
@@ -9,6 +10,9 @@ app = FastAPI(
     ),
     version="1.0.0",
 )
+
+app.include_router(entries.router)
+app.include_router(authroutes.router)
 
 @app.get("/", tags=["Root"])
 def root():
