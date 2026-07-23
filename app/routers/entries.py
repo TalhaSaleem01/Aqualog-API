@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from ..auth import get_current_user
 from ..database import entries_db, get_next_entry_id, seed_entries, TASK_TYPES
 from ..models import EntryCreate, EntryOut, EntryUpdate
-from app import limiter
+from ..rate_limiter import limiter
 
 router = APIRouter(prefix="/entries", tags=["Aquarium Log Entries"])
 

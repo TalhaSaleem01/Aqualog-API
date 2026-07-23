@@ -4,7 +4,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from ..auth import create_access_token, hash_password, verify_password
 from ..database import users_db
 from ..models import Token, UserCreate
-from app import limiter
+from ..rate_limiter import limiter
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
